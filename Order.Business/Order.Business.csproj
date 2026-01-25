@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Order.ClientHttp\Order.ClientHttp.csproj" />
+    <ProjectReference Include="..\Order.Repository\Order.Repository.csproj" />
+    <ProjectReference Include="..\Order.Shared\Order.Shared.csproj" />
+    <ProjectReference Include="..\Warehouse.ClientHttp\Warehouse.ClientHttp.csproj" />
+  </ItemGroup>
+
+</Project>
