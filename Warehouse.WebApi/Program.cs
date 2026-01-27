@@ -14,6 +14,8 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<WarehouseDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("WarehouseDb")));
 
+builder.Services.AddHostedService<Warehouse.WebApi.BackgroundServices.KafkaConsumerService>();
+
 builder.Services.AddScoped<IProductService, ProductService>();
 
 
