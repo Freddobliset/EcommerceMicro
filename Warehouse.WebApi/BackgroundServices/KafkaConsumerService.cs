@@ -19,51 +19,75 @@ namespace Warehouse.WebApi.BackgroundServices
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
+            await Task.Yield(); 
             var config = new ConsumerConfig
             {
                 BootstrapServers = _bootstrapServers,
                 GroupId = _groupId,
-                AutoOffsetReset = AutoOffsetReset.Earliest
+                AutoOffsetReset = AutoOffsetReset.Earliest,
+                SocketTimeoutMs = 60000,
+                SessionTimeoutMs = 30000,
             };
-
-            using var consumer = new ConsumerBuilder<Ignore, string>(config).Build();
-            consumer.Subscribe(_topic);
-
-            Console.WriteLine($"[KAFKA CONSUMER] In ascolto sul topic: {_topic}");
 
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    var result = consumer.Consume(stoppingToken);
-                    var jsonMessage = result.Message.Value;
-                    Console.WriteLine($"[KAFKA CONSUMER] Ricevuto: {jsonMessage}");
+                    using var consumer = new ConsumerBuilder<Ignore, string>(config).Build();
 
-                    var orderEvent = JsonConvert.DeserializeObject<OrderCreatedEvent>(jsonMessage);
+                    consumer.Subscribe(_topic);
 
-                    if (orderEvent != null)
+                    Console.WriteLine($"[KAFKA CONSUMER] Connesso! In ascolto su: {_topic}");
+
+                    while (!stoppingToken.IsCancellationRequested)
                     {
-                        using (var scope = _scopeFactory.CreateScope())
+                        try
                         {
-                            var productService = scope.ServiceProvider.GetRequiredService<IProductService>();
+                            var result = consumer.Consume(stoppingToken);
 
-                            // Qui recuperiamo il prodotto e aggiorniamo la quantità
-                            var product = await productService.GetProductByIdAsync(orderEvent.ProductId);
-                            if (product != null)
+                            if (result != null && result.Message != null)
                             {
-                                // Simuliamo l'aggiornamento (per ora solo log, poi implementerai Update se vuoi)
-                                product.StockQuantity -= orderEvent.QuantitySold;
-                                Console.WriteLine($"[MAGAZZINO UPDATE] Prodotto {product.Id} aggiornato. Nuova Qtà: {product.StockQuantity}");
-                                // TODO: Qui dovresti chiamare await productService.UpdateAsync(product);
+                                var jsonMessage = result.Message.Value;
+                                Console.WriteLine($"[KAFKA CONSUMER] Ricevuto: {jsonMessage}");
+                                ProcessMessage(jsonMessage);
                             }
+                        }
+                        catch (ConsumeException e)
+                        {
+                            Console.WriteLine($"[KAFKA WARN] Errore durante il consumo: {e.Error.Reason}");
+                            await Task.Delay(1000, stoppingToken);
                         }
                     }
                 }
-                catch (OperationCanceledException) { break; }
-                catch (Exception e)
+                catch (Exception ex)
                 {
-                    Console.WriteLine($"[KAFKA ERROR] {e.Message}");
+                    Console.WriteLine($"[KAFKA ERROR] Kafka non raggiungibile. Riprovo tra 5 secondi... ({ex.Message})");
+
+                    await Task.Delay(5000, stoppingToken);
                 }
+            }
+        }
+
+        private void ProcessMessage(string jsonMessage)
+        {
+            try
+            {
+                var orderEvent = JsonConvert.DeserializeObject<OrderCreatedEvent>(jsonMessage);
+                if (orderEvent != null)
+                {
+                    using (var scope = _scopeFactory.CreateScope())
+                    {
+                        var productService = scope.ServiceProvider.GetRequiredService<IProductService>();
+
+                        productService.UpdateStockAsync(orderEvent.ProductId, orderEvent.QuantitySold).Wait();
+
+                        Console.WriteLine($"[MAGAZZINO] Comando di aggiornamento inviato al DB per Prodotto {orderEvent.ProductId} (-{orderEvent.QuantitySold})");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERRORE PROCESSAMENTO] {ex.Message}");
             }
         }
     }

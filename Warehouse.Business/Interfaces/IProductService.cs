@@ -11,5 +11,7 @@ namespace Warehouse.Business.Interfaces
         Task<IEnumerable<ProductDto>> GetAllProductsAsync();
         Task<ProductDto?> GetProductByIdAsync(int id);
         Task<int> CreateProductAsync(ProductDto productDto);
+        Task UpdateStockAsync(int productId, int quantitySold);
+
     }
 }

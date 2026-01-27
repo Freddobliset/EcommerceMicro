@@ -60,5 +60,18 @@ namespace Warehouse.Business
                 StockQuantity = p.StockQuantity
             };
         }
+
+        public async Task UpdateStockAsync(int productId, int quantitySold)
+        {
+            var product = await _context.Products.FindAsync(productId);
+
+            if (product != null)
+            {
+                product.StockQuantity -= quantitySold;
+
+                await _context.SaveChangesAsync();
+            }
+        }
+
     }
 }

@@ -4,10 +4,14 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+	  <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+	  <PackageId>Warehouse.ClientHttp</PackageId>
+	  <Version>1.0.0</Version>
+	  <PackageOutputPath>..\NugetLocal</PackageOutputPath>
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Warehouse.Shared\Warehouse.Shared.csproj" />
+	  <ProjectReference Include="..\Warehouse.Shared\Warehouse.Shared.csproj" />
   </ItemGroup>
 
 </Project>

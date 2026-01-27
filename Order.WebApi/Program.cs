@@ -7,20 +7,26 @@ using Warehouse.ClientHttp.Interfaces;
 
 var builder = WebApplication.CreateBuilder(args);
 
-
 builder.Services.AddControllers();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 builder.Services.AddDbContext<OrderDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("OrderDb")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("OrderDb"), sqlOptions =>
+    {
+        sqlOptions.EnableRetryOnFailure(
+            maxRetryCount: 5,
+            maxRetryDelay: TimeSpan.FromSeconds(10),
+            errorNumbersToAdd: null);
+    }));
 
 builder.Services.AddScoped<Order.Business.Kafka.IKafkaProducerService, Order.Business.Kafka.KafkaProducerService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 
 builder.Services.AddHttpClient<IWarehouseClient, WarehouseClient>(client =>
 {
+  
     client.BaseAddress = new Uri("https://localhost:7135");
 });
 
