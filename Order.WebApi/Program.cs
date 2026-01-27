@@ -16,6 +16,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<OrderDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("OrderDb")));
 
+builder.Services.AddScoped<Order.Business.Kafka.IKafkaProducerService, Order.Business.Kafka.KafkaProducerService>();
 builder.Services.AddScoped<IOrderService, OrderService>();
 
 builder.Services.AddHttpClient<IWarehouseClient, WarehouseClient>(client =>
