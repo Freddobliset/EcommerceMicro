@@ -1,6 +1,6 @@
 
-
 services:
+  
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: ecommerce-db
@@ -8,11 +8,11 @@ services:
       - "1433:1433"
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=Password2026
+      - MSSQL_SA_PASSWORD=Password2026  
       - MSSQL_PID=Express
     volumes:
       - sqlserver-data:/var/opt/mssql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql 
     networks:
       - ecommerce-network
     healthcheck:
@@ -43,7 +43,6 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      # Configurazione CRITICA per comunicazione sia interna che esterna
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
@@ -61,13 +60,50 @@ services:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
     ports:
-      - "8080:8080"
+      - "8080:8080" 
     depends_on:
       - kafka
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - ecommerce-network
+
+
+  order-service:
+    image: order-service
+    build:
+      context: .
+      dockerfile: src/OrderService/Order.WebApi/Dockerfile
+    ports:
+      - "5001:8080" 
+    environment:
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=OrderDb;User Id=sa;Password=Password2026;TrustServerCertificate=True;
+      - Kafka__BootstrapServers=kafka:9092
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - ecommerce-network
+
+  warehouse-service:
+    image: warehouse-service
+    build:
+      context: .
+      dockerfile: src/WarehouseService/EcommerceMicro/Dockerfile
+    ports:
+      - "5002:8080" 
+    environment:
+      - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=WarehouseDb;User Id=sa;Password=Password2026;TrustServerCertificate=True;
+      - Kafka__BootstrapServers=kafka:9092
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     networks:
       - ecommerce-network
 
