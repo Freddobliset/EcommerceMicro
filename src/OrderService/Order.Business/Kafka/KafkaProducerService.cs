@@ -16,7 +16,7 @@ namespace Order.Business.Kafka
 
     public class KafkaProducerService : IKafkaProducerService
     {
-        private readonly string _bootstrapServers = "localhost:9092";
+        private readonly string _bootstrapServers = "kafka:9092";
         private readonly string _topic = "order-created-topic";
 
         public async Task SendOrderCreatedMessage(OrderCreatedEvent message)

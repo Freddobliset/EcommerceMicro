@@ -1,6 +1,4 @@
-
 services:
-  
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: ecommerce-db
@@ -8,18 +6,12 @@ services:
       - "1433:1433"
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=Password2026  
+      - MSSQL_SA_PASSWORD=Password2026
       - MSSQL_PID=Express
     volumes:
       - sqlserver-data:/var/opt/mssql
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql 
     networks:
       - ecommerce-network
-    healthcheck:
-      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "Password2026", "-Q", "SELECT 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -43,6 +35,7 @@ services:
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9093
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
@@ -60,7 +53,7 @@ services:
     image: provectuslabs/kafka-ui:latest
     container_name: kafka-ui
     ports:
-      - "8080:8080" 
+      - "8080:8080"
     depends_on:
       - kafka
     environment:
@@ -70,22 +63,20 @@ services:
     networks:
       - ecommerce-network
 
-
   order-service:
     image: order-service
     build:
       context: .
       dockerfile: src/OrderService/Order.WebApi/Dockerfile
     ports:
-      - "5001:8080" 
+      - "5001:8080"
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=OrderDb;User Id=sa;Password=Password2026;TrustServerCertificate=True;
       - Kafka__BootstrapServers=kafka:9092
     depends_on:
-      sqlserver:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
+      - sqlserver
+      - kafka
     networks:
       - ecommerce-network
 
@@ -93,17 +84,16 @@ services:
     image: warehouse-service
     build:
       context: .
-      dockerfile: src/WarehouseService/EcommerceMicro/Dockerfile
+      dockerfile: src/WarehouseService/Warehouse.WebApi/Dockerfile
     ports:
-      - "5002:8080" 
+      - "5002:8080"
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Server=sqlserver;Database=WarehouseDb;User Id=sa;Password=Password2026;TrustServerCertificate=True;
       - Kafka__BootstrapServers=kafka:9092
     depends_on:
-      sqlserver:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
+      - sqlserver
+      - kafka
     networks:
       - ecommerce-network
 

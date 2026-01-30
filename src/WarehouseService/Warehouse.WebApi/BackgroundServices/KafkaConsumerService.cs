@@ -1,13 +1,18 @@
 ﻿using Confluent.Kafka;
 using Newtonsoft.Json;
 using Warehouse.Business.Interfaces;
-using Warehouse.Shared.Events;
+using Warehouse.Shared.Events; 
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.DependencyInjection;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Warehouse.WebApi.BackgroundServices
 {
     public class KafkaConsumerService : BackgroundService
     {
-        private readonly string _bootstrapServers = "localhost:9092";
+        private readonly string _bootstrapServers = "kafka:9092";
         private readonly string _topic = "order-created-topic";
         private readonly string _groupId = "warehouse-group";
         private readonly IServiceScopeFactory _scopeFactory;
@@ -19,75 +24,78 @@ namespace Warehouse.WebApi.BackgroundServices
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            await Task.Yield(); 
+            await Task.Yield();
+
             var config = new ConsumerConfig
             {
                 BootstrapServers = _bootstrapServers,
                 GroupId = _groupId,
-                AutoOffsetReset = AutoOffsetReset.Earliest,
-                SocketTimeoutMs = 60000,
-                SessionTimeoutMs = 30000,
+                AutoOffsetReset = AutoOffsetReset.Earliest, 
+                EnableAutoCommit = true
             };
 
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                try
-                {
-                    using var consumer = new ConsumerBuilder<Ignore, string>(config).Build();
+            using var consumer = new ConsumerBuilder<Ignore, string>(config).Build();
 
-                    consumer.Subscribe(_topic);
-
-                    Console.WriteLine($"[KAFKA CONSUMER] Connesso! In ascolto su: {_topic}");
-
-                    while (!stoppingToken.IsCancellationRequested)
-                    {
-                        try
-                        {
-                            var result = consumer.Consume(stoppingToken);
-
-                            if (result != null && result.Message != null)
-                            {
-                                var jsonMessage = result.Message.Value;
-                                Console.WriteLine($"[KAFKA CONSUMER] Ricevuto: {jsonMessage}");
-                                ProcessMessage(jsonMessage);
-                            }
-                        }
-                        catch (ConsumeException e)
-                        {
-                            Console.WriteLine($"[KAFKA WARN] Errore durante il consumo: {e.Error.Reason}");
-                            await Task.Delay(1000, stoppingToken);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"[KAFKA ERROR] Kafka non raggiungibile. Riprovo tra 5 secondi... ({ex.Message})");
-
-                    await Task.Delay(5000, stoppingToken);
-                }
-            }
-        }
-
-        private void ProcessMessage(string jsonMessage)
-        {
             try
             {
-                var orderEvent = JsonConvert.DeserializeObject<OrderCreatedEvent>(jsonMessage);
-                if (orderEvent != null)
+                consumer.Subscribe(_topic);
+                Console.WriteLine($"[KAFKA CONSUMER] 🎧 In ascolto su {_topic} presso {_bootstrapServers}...");
+
+                while (!stoppingToken.IsCancellationRequested)
                 {
-                    using (var scope = _scopeFactory.CreateScope())
+                    try
                     {
-                        var productService = scope.ServiceProvider.GetRequiredService<IProductService>();
+                        var result = consumer.Consume(stoppingToken);
 
-                        productService.UpdateStockAsync(orderEvent.ProductId, orderEvent.QuantitySold).Wait();
-
-                        Console.WriteLine($"[MAGAZZINO] Comando di aggiornamento inviato al DB per Prodotto {orderEvent.ProductId} (-{orderEvent.QuantitySold})");
+                        if (result != null && !string.IsNullOrEmpty(result.Message.Value))
+                        {
+                            Console.WriteLine($"[KAFKA CONSUMER] 📩 Messaggio RICEVUTO: {result.Message.Value}");
+                            await ProcessMessageAsync(result.Message.Value);
+                        }
+                    }
+                    catch (ConsumeException e)
+                    {
+                        Console.WriteLine($"[KAFKA ERROR] Errore ricezione: {e.Error.Reason}");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
                     }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ERRORE PROCESSAMENTO] {ex.Message}");
+                Console.WriteLine($"[KAFKA CRITICAL] Il consumer è morto: {ex.Message}");
+            }
+            finally
+            {
+                consumer.Close();
+            }
+        }
+
+        private async Task ProcessMessageAsync(string message)
+        {
+            try
+            {
+                using (var scope = _scopeFactory.CreateScope())
+                {
+                    var productService = scope.ServiceProvider.GetRequiredService<IProductService>();
+
+                    var orderEvent = JsonConvert.DeserializeObject<OrderCreatedEvent>(message);
+
+                    if (orderEvent != null)
+                    {
+                        Console.WriteLine($"[MAGAZZINO] 📉 Scalo {orderEvent.QuantitySold} pezzi dal prodotto {orderEvent.ProductId}...");
+
+                        await productService.UpdateStockAsync(orderEvent.ProductId, orderEvent.QuantitySold);
+
+                        Console.WriteLine("[MAGAZZINO] ✅ Stock aggiornato con successo!");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[MAGAZZINO ERROR] Impossibile elaborare l'ordine: {ex.Message}");
             }
         }
     }
