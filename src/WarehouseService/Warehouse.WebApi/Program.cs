@@ -13,7 +13,6 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<WarehouseDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"), sqlOptions =>
     {
-        // Questo serve per le query, ma non basta per l'avvio
         sqlOptions.EnableRetryOnFailure(maxRetryCount: 5, maxRetryDelay: TimeSpan.FromSeconds(10), errorNumbersToAdd: null);
     }));
 
@@ -22,30 +21,43 @@ builder.Services.AddScoped<IProductService, ProductService>();
 
 var app = builder.Build();
 
-// --- BLOCCO "ANTI-CRASH" PER IL DB ---
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var context = services.GetRequiredService<WarehouseDbContext>();
 
-    // Proviamo a connetterci per 10 volte (circa 50 secondi totali)
     for (int i = 0; i < 10; i++)
     {
         try
         {
-            Console.WriteLine($"[DB INIT] Tentativo connessione DB {i + 1}/10...");
-            context.Database.EnsureCreated();
-            Console.WriteLine("[DB INIT] SUCCESSO! Database connesso.");
-            break; // Se ci riesce, esce dal ciclo
+            Console.WriteLine($"[DB INIT] Tentativo connessione e migrazione DB {i + 1}/10...");
+
+            context.Database.Migrate();
+
+            if (!context.Products.Any())
+            {
+                Console.WriteLine("[DB SEED] Inserimento prodotto di test...");
+                context.Products.Add(new Warehouse.Repository.Entities.Product
+                {
+                    Name = "Prodotto Test Automatico",
+                    Price = 100,
+                    StockQuantity = 50,
+                    SupplierName = "Sistema Automatico"
+                });
+                context.SaveChanges();
+                Console.WriteLine("[DB SEED] Prodotto inserito.");
+            }
+
+            Console.WriteLine("[DB INIT] SUCCESSO! Database migrato e connesso.");
+            break;
         }
         catch (Exception ex)
         {
             Console.WriteLine($"[DB INIT] Fallito: {ex.Message}. Riprovo tra 5 secondi...");
-            System.Threading.Thread.Sleep(5000); // Aspetta 5 secondi
+            System.Threading.Thread.Sleep(5000);
         }
     }
 }
-// -------------------------------------
 
 app.UseSwagger();
 app.UseSwaggerUI();

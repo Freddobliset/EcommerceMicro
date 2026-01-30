@@ -27,7 +27,6 @@ builder.Services.AddHttpClient<IWarehouseClient, WarehouseClient>(client =>
 
 var app = builder.Build();
 
-// --- BLOCCO "ANTI-CRASH" PER IL DB ---
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -37,9 +36,9 @@ using (var scope = app.Services.CreateScope())
     {
         try
         {
-            Console.WriteLine($"[DB INIT] Tentativo connessione DB {i + 1}/10...");
-            context.Database.EnsureCreated();
-            Console.WriteLine("[DB INIT] SUCCESSO! Database connesso.");
+            Console.WriteLine($"[DB INIT] Tentativo connessione e migrazione DB {i + 1}/10...");
+            context.Database.Migrate();
+            Console.WriteLine("[DB INIT] SUCCESSO! Database migrato e connesso.");
             break;
         }
         catch (Exception ex)
@@ -49,7 +48,6 @@ using (var scope = app.Services.CreateScope())
         }
     }
 }
-// -------------------------------------
 
 app.UseSwagger();
 app.UseSwaggerUI();
