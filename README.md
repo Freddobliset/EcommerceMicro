@@ -22,7 +22,7 @@ The project follows the required 5-layer architecture (WebApi, Business, ClientH
 ## 🚦 Getting Started
 The system is designed to be "turnkey" using Docker.
 
-1.  Ensure **Docker Desktop** is running.
+1.  Ensure **Docker** is running.
 2.  Open your terminal in the project root (where `docker-compose.yml` is located).
 3.  Run the following command:
     ```bash
